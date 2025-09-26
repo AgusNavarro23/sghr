@@ -36,11 +36,10 @@ export default async function EmployeeDashboard() {
       .eq("employee_id", employee.id)
       .eq("status", "pending"),
     supabase
-      .from("payroll_records")
+      .from("payslips")
       .select("*", { count: "exact", head: true })
       .eq("employee_id", employee.id)
-      .gte("pay_period_start", new Date(new Date().getFullYear(), 0, 1).toISOString()),
-    supabase
+,    supabase
       .from("leave_requests")
       .select(`
         *,
@@ -50,7 +49,7 @@ export default async function EmployeeDashboard() {
       .order("created_at", { ascending: false })
       .limit(3),
     supabase
-      .from("payroll_records")
+      .from("payslips")
       .select("*")
       .eq("employee_id", employee.id)
       .order("created_at", { ascending: false })
@@ -81,6 +80,10 @@ export default async function EmployeeDashboard() {
         return <Badge variant="secondary">{status}</Badge>
     }
   }
+  function nombreMesEs(m: number) {
+  const d = new Date(2000, m - 1, 1);
+  return new Intl.DateTimeFormat("es-AR", { month: "long" }).format(d);
+}
 
   return (
     <EmployeeLayout>
@@ -165,26 +168,14 @@ export default async function EmployeeDashboard() {
                     <div key={payroll.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/20">
                       <div>
                         <p className="font-medium">
-                          {new Date(payroll.pay_period_start).toLocaleDateString()} -{" "}
-                          {new Date(payroll.pay_period_end).toLocaleDateString()}
+                          Año: {payroll.year} - Mes: {nombreMesEs(payroll.month).toUpperCase()}
                         </p>
-                        <p className="text-sm text-muted-foreground">Neto: ${payroll.net_salary.toLocaleString()}</p>
                       </div>
                       <Badge
                         variant="secondary"
-                        className={
-                          payroll.status === "paid"
-                            ? "bg-green-500/20 text-green-400"
-                            : payroll.status === "processed"
-                              ? "bg-blue-500/20 text-blue-400"
-                              : "bg-gray-500/20 text-gray-400"
-                        }
+                        className="bg-green-500/20 text-green-400"
                       >
-                        {payroll.status === "paid"
-                          ? "Pagado"
-                          : payroll.status === "processed"
-                            ? "Procesado"
-                            : "Borrador"}
+                        Pagado
                       </Badge>
                     </div>
                   ))

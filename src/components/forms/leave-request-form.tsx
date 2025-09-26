@@ -84,7 +84,7 @@ export function LeaveRequestForm({ leaveTypes, employeeId }: LeaveRequestFormPro
 
       router.push("/employee/leaves")
     } catch (err) {
-      setError("Error inesperado al crear la solicitud")
+      setError(err+"Error inesperado al crear la solicitud")
     } finally {
       setLoading(false)
     }

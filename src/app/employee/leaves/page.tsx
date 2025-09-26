@@ -1,38 +1,103 @@
-import { createClient } from "@/lib/supabase/server"
+"use client"
+import { useEffect, useState } from "react"
+import { createClient } from "@/lib/supabase/client"
 import { EmployeeLayout } from "@/components/layout/employee-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Calendar, Clock, CheckCircle, XCircle, Plus } from "lucide-react"
+import { Calendar, Clock, CheckCircle, XCircle, Plus, Loader2 } from "lucide-react"
+import { CertificateUpload } from "@/components/layout/employee-leaves"
 import Link from "next/link"
 
-export default async function EmployeeLeavesPage() {
-  const supabase = await createClient()
+interface LeaveRequest {
+  id: string
+  employee_id: string
+  start_date: string
+  end_date: string
+  days_requested: number
+  reason?: string
+  status: string
+  certificate_url?: string | null // Fix: Allow null
+  rejection_reason?: string
+  created_at: string
+  approved_at?: string
+  leave_types: {
+    name: string
+    description: string
+  }
+}
 
-  // Get current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) return null
+export default function EmployeeLeavesPage() {
+  const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>([])
+  const [loading, setLoading] = useState(true)
+  const [employee, setEmployee] = useState<any>(null)
+  const supabase = createClient()
 
-  // Get employee data
-  const { data: employee } = await supabase.from("employees").select("*").eq("user_id", user.id).single()
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        // Get current user
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) return
 
-  if (!employee) return null
+        // Get employee data
+        const { data: employeeData } = await supabase
+          .from("employees")
+          .select("*")
+          .eq("user_id", user.id)
+          .single()
 
-  const { data: leaveRequests } = await supabase
-    .from("leave_requests")
-    .select(`
-      *,
-      leave_types(name, description)
-    `)
-    .eq("employee_id", employee.id)
-    .order("created_at", { ascending: false })
+        if (!employeeData) return
+        setEmployee(employeeData)
 
-  const pendingLeaves = leaveRequests?.filter((leave) => leave.status === "pending") || []
-  const approvedLeaves = leaveRequests?.filter((leave) => leave.status === "approved") || []
-  const rejectedLeaves = leaveRequests?.filter((leave) => leave.status === "rejected") || []
+        // Get leave requests
+        const { data: leaveData } = await supabase
+          .from("leave_requests")
+          .select(`*, leave_types(name, description)`)
+          .eq("employee_id", employeeData.id)
+          .order("created_at", { ascending: false })
+
+        // Fix: Type assertion to handle the data structure
+        setLeaveRequests((leaveData as LeaveRequest[]) || [])
+      } catch (error) {
+        console.error("Error fetching data:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    fetchData()
+  }, [supabase])
+
+  const handleCertificateUploadSuccess = (leaveId: string, url: string | null) => {
+    setLeaveRequests(prev => prev.map(leave => 
+      leave.id === leaveId ? { ...leave, certificate_url: url } : leave
+    ))
+  }
+
+  if (loading) {
+    return (
+      <EmployeeLayout>
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+      </EmployeeLayout>
+    )
+  }
+
+  if (!employee) {
+    return (
+      <EmployeeLayout>
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">No se pudo cargar la información del empleado.</p>
+        </div>
+      </EmployeeLayout>
+    )
+  }
+
+  const pendingLeaves = leaveRequests.filter((leave) => leave.status === "pending")
+  const approvedLeaves = leaveRequests.filter((leave) => leave.status === "approved")
+  const rejectedLeaves = leaveRequests.filter((leave) => leave.status === "rejected")
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -62,7 +127,7 @@ export default async function EmployeeLeavesPage() {
     }
   }
 
-  const LeaveRequestCard = ({ leave }: { leave: any }) => (
+  const LeaveRequestCard = ({ leave }: { leave: LeaveRequest }) => (
     <Card className="cyber-border border-primary/20 hover:cyber-glow transition-all duration-300">
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -70,7 +135,9 @@ export default async function EmployeeLeavesPage() {
             <CardTitle className="text-lg">{leave.leave_types.name}</CardTitle>
             <CardDescription>{leave.leave_types.description}</CardDescription>
           </div>
-          {getStatusBadge(leave.status)}
+          <div className="flex items-center space-x-2">
+            {getStatusBadge(leave.status)}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -116,6 +183,19 @@ export default async function EmployeeLeavesPage() {
             <p className="text-sm">{new Date(leave.approved_at).toLocaleString()}</p>
           </div>
         )}
+        {/* Certificado existente */}
+
+        {/* Componente de subida de certificado para licencias aprobadas */}
+        {leave.status === "approved" && (
+          <div className="border-t pt-4">
+            <p className="text-sm text-muted-foreground mb-3">Certificado Médico/Justificativo</p>
+            <CertificateUpload 
+              leaveRequestId={leave.id}
+              currentCertificateUrl={leave.certificate_url || undefined}
+              onUploadSuccess={(url) => handleCertificateUploadSuccess(leave.id, url)}
+            />
+          </div>
+        )}
       </CardContent>
     </Card>
   )
@@ -135,11 +215,10 @@ export default async function EmployeeLeavesPage() {
             </Link>
           </Button>
         </div>
-
         <Tabs defaultValue="all" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4 cyber-border">
             <TabsTrigger value="all" className="data-[state=active]:cyber-glow">
-              Todas ({leaveRequests?.length || 0})
+              Todas ({leaveRequests.length})
             </TabsTrigger>
             <TabsTrigger value="pending" className="data-[state=active]:cyber-glow">
               Pendientes ({pendingLeaves.length})
@@ -151,9 +230,8 @@ export default async function EmployeeLeavesPage() {
               Rechazadas ({rejectedLeaves.length})
             </TabsTrigger>
           </TabsList>
-
           <TabsContent value="all" className="space-y-4">
-            {leaveRequests && leaveRequests.length > 0 ? (
+            {leaveRequests.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2">
                 {leaveRequests.map((leave) => (
                   <LeaveRequestCard key={leave.id} leave={leave} />
@@ -175,7 +253,6 @@ export default async function EmployeeLeavesPage() {
               </Card>
             )}
           </TabsContent>
-
           <TabsContent value="pending" className="space-y-4">
             {pendingLeaves.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2">
@@ -193,7 +270,6 @@ export default async function EmployeeLeavesPage() {
               </Card>
             )}
           </TabsContent>
-
           <TabsContent value="approved" className="space-y-4">
             {approvedLeaves.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2">
@@ -211,7 +287,6 @@ export default async function EmployeeLeavesPage() {
               </Card>
             )}
           </TabsContent>
-
           <TabsContent value="rejected" className="space-y-4">
             {rejectedLeaves.length > 0 ? (
               <div className="grid gap-4 md:grid-cols-2">
