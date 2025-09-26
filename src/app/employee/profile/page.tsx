@@ -3,7 +3,9 @@ import { EmployeeLayout } from "@/components/layout/employee-layout"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { User, Mail, Phone, Calendar, MapPin, Briefcase, Building } from "lucide-react"
+import { User, Mail, Phone, Calendar, MapPin, Briefcase, Building, Settings } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import Link from "next/link"
 
 export default async function EmployeeProfilePage() {
   const supabase = await createClient()
@@ -28,6 +30,12 @@ export default async function EmployeeProfilePage() {
         <div>
           <h1 className="text-3xl font-bold cyber-text">Mi Perfil</h1>
           <p className="text-muted-foreground">Información personal y laboral</p>
+          <Button asChild className="cyber-glow">
+                <Link href="/employee/profile/edit">
+                    <Settings className="mr-2 h-4 w-4" />
+                        Configurar Perfil
+                  </Link>
+          </Button>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2">

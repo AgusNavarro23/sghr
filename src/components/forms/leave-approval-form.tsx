@@ -15,6 +15,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { CheckCircle, XCircle, Loader2 } from "lucide-react"
+import { toast } from "sonner"
 import { approveLeaveRequest, rejectLeaveRequest } from "@/lib/actions/leave-actions"
 
 interface LeaveApprovalFormProps {
@@ -41,37 +42,59 @@ export function LeaveApprovalForm({
     setLoading(true)
     setError("")
 
-    const result = await approveLeaveRequest(leaveRequestId, approverId)
+    try {
+      await toast.promise(
+        (async () => {
+          const result = await approveLeaveRequest(leaveRequestId, approverId)
+          if (!result.success) throw new Error(result.error || "Error al aprobar la solicitud")
+        })(),
+        {
+          loading: "Aprobando solicitud...",
+          success: "Solicitud aprobada y notificada por correo",
+          error: (e) => (e instanceof Error ? e.message : "No se pudo aprobar la solicitud"),
+        }
+      )
 
-    if (result.success) {
       onSuccess?.()
-    } else {
-      setError(result.error || "Error al aprobar la solicitud")
+    } catch (e: any) {
+      setError(e?.message || "Error al aprobar la solicitud")
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   const handleReject = async () => {
     if (!rejectionReason.trim()) {
-      setError("Por favor proporciona un motivo para el rechazo")
+      const msg = "Por favor proporciona un motivo para el rechazo"
+      setError(msg)
+      toast.error("Motivo requerido", { description: msg })
       return
     }
 
     setLoading(true)
     setError("")
 
-    const result = await rejectLeaveRequest(leaveRequestId, approverId, rejectionReason)
+    try {
+      await toast.promise(
+        (async () => {
+          const result = await rejectLeaveRequest(leaveRequestId, approverId, rejectionReason.trim())
+          if (!result.success) throw new Error(result.error || "Error al rechazar la solicitud")
+        })(),
+        {
+          loading: "Rechazando solicitud...",
+          success: "Solicitud rechazada y notificada por correo",
+          error: (e) => (e instanceof Error ? e.message : "No se pudo rechazar la solicitud"),
+        }
+      )
 
-    if (result.success) {
       setRejectDialogOpen(false)
       setRejectionReason("")
       onSuccess?.()
-    } else {
-      setError(result.error || "Error al rechazar la solicitud")
+    } catch (e: any) {
+      setError(e?.message || "Error al rechazar la solicitud")
+    } finally {
+      setLoading(false)
     }
-
-    setLoading(false)
   }
 
   return (
@@ -103,6 +126,7 @@ export function LeaveApprovalForm({
                 motivo.
               </DialogDescription>
             </DialogHeader>
+
             <div className="space-y-4">
               <div className="space-y-2">
                 <Label htmlFor="rejectionReason">Motivo del Rechazo *</Label>
@@ -121,11 +145,13 @@ export function LeaveApprovalForm({
                 </Alert>
               )}
             </div>
+
             <DialogFooter>
               <Button
                 variant="outline"
                 onClick={() => setRejectDialogOpen(false)}
                 className="cyber-border bg-transparent"
+                disabled={loading}
               >
                 Cancelar
               </Button>

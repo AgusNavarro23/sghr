@@ -41,7 +41,7 @@ export function WhatsAppTestInterface() {
       const data = await response.json()
       setResult(data)
     } catch (error) {
-      setResult({ error: "Error testing message" })
+      setResult(error+"Error testing message" )
     } finally {
       setLoading(false)
     }

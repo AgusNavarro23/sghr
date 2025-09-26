@@ -106,8 +106,8 @@ export function LoginForm() {
               </Button>
             </form>
             <div className="mt-4 text-center">
-                <Button variant="link" onClick={() => router.push("/auth/register")} className="text-primary">
-                    ¿No tienes una cuenta? Registrate
+                <Button variant="link" onClick={() => router.push("/auth/password")} className="text-primary">
+                    ¿Olvidaste tu contraseña?
                 </Button>
             </div>
           </CardContent>

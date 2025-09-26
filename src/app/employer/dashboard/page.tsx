@@ -14,10 +14,9 @@ export default async function EmployerDashboard() {
       supabase.from("employees").select("*", { count: "exact", head: true }).eq("status", "active"),
       supabase.from("leave_requests").select("*", { count: "exact", head: true }).eq("status", "pending"),
       supabase
-        .from("payroll_records")
+        .from("payslips")
         .select("*", { count: "exact", head: true })
-        .gte("pay_period_start", new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
-        .eq("status", "processed"),
+       ,
       supabase
         .from("leave_requests")
         .select(

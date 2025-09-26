@@ -4,17 +4,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { LeaveApprovalForm } from "@/components/forms/leave-approval-form"
-import { Calendar, Clock, CheckCircle, XCircle, User } from "lucide-react"
+import { Calendar, Clock, CheckCircle, XCircle, User, Download } from "lucide-react"
+import { Button } from "@/components/ui/button"
+
+type LeaveRow = any
 
 export default async function EmployerLeavesPage() {
   const supabase = await createClient()
 
-  // Get current user
+  // Usuario actual
   const {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) return null
 
+  // Traer licencias + datos relacionados
   const { data: leaveRequests } = await supabase
     .from("leave_requests")
     .select(
@@ -29,9 +33,32 @@ export default async function EmployerLeavesPage() {
     )
     .order("created_at", { ascending: false })
 
-  const pendingLeaves = leaveRequests?.filter((leave) => leave.status === "pending") || []
-  const approvedLeaves = leaveRequests?.filter((leave) => leave.status === "approved") || []
-  const rejectedLeaves = leaveRequests?.filter((leave) => leave.status === "rejected") || []
+  // Helper para obtener una URL visible del certificado
+  async function buildCertificateViewUrl(certificate_url: string | null | undefined) {
+    if (!certificate_url) return null
+    // Si ya es http(s), úsala directo (bucket público)
+    if (certificate_url.startsWith("http")) return certificate_url
+
+    // Si es path interno (bucket privado), crear Signed URL
+    const { data, error } = await supabase
+      .storage
+      .from("licencias")
+      .createSignedUrl(certificate_url, 120) // 120s
+    if (error) return null
+    return data.signedUrl
+  }
+
+  // Enriquecemos cada fila con certificate_view_url (visible)
+  const leavesWithCertUrl: (LeaveRow & { certificate_view_url: string | null })[] = await Promise.all(
+    (leaveRequests ?? []).map(async (leave) => {
+      const certificate_view_url = await buildCertificateViewUrl(leave.certificate_url)
+      return { ...leave, certificate_view_url }
+    })
+  )
+
+  const pendingLeaves = leavesWithCertUrl.filter((leave) => leave.status === "pending")
+  const approvedLeaves = leavesWithCertUrl.filter((leave) => leave.status === "approved")
+  const rejectedLeaves = leavesWithCertUrl.filter((leave) => leave.status === "rejected")
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -61,7 +88,7 @@ export default async function EmployerLeavesPage() {
     }
   }
 
-  const LeaveRequestCard = ({ leave }: { leave: any }) => (
+  const LeaveRequestCard = ({ leave }: { leave: LeaveRow & { certificate_view_url: string | null } }) => (
     <Card className="cyber-border border-primary/20 hover:cyber-glow transition-all duration-300">
       <CardHeader>
         <div className="flex items-center justify-between">
@@ -108,6 +135,9 @@ export default async function EmployerLeavesPage() {
           <p className="text-sm text-muted-foreground">Solicitado el</p>
           <p className="text-sm">{new Date(leave.created_at).toLocaleString()}</p>
         </div>
+
+        {/* Botón para ver/descargar certificado si existe */}
+
         {leave.status === "pending" && (
           <LeaveApprovalForm
             leaveRequestId={leave.id}
@@ -130,6 +160,18 @@ export default async function EmployerLeavesPage() {
               {leave.status === "approved" ? "Aprobada el" : "Procesada el"}
             </p>
             <p className="text-sm">{new Date(leave.approved_at).toLocaleString()}</p>
+          </div>
+        )}
+        {leave.certificate_view_url && (
+          <div className="border-t pt-4">
+            <div className="flex items-center justify-between">
+              <p className="text-sm text-muted-foreground">Certificado del empleado</p>
+                   <Button asChild size="sm" className="cyber-glow">
+                      <a href={leave.certificate_view_url} target="_blank" rel="noopener noreferrer">
+                        Ver Certificado
+                      </a>
+                    </Button>
+            </div>
           </div>
         )}
       </CardContent>
